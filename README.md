@@ -823,6 +823,13 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // 인증된 사용자만 쓰기 가능
       allow write: if request.auth != null;
+      // 조회수: 비로그인 방문자도 공개글의 viewCount를 정확히 1 올리는 것만 허용
+      // (lastViewedAt은 서버 시각으로만 설정 가능, 다른 필드는 변경 불가)
+      allow update: if resource.data.published == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'lastViewedAt'])
+        && request.resource.data.viewCount is int
+        && request.resource.data.viewCount == resource.data.get('viewCount', 0) + 1
+        && (!('lastViewedAt' in request.resource.data) || request.resource.data.lastViewedAt == request.time);
     }
     
     // projects 컬렉션 규칙

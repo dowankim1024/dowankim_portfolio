@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getPublishedPostsPaginated } from '@/lib/blog'
 import { BlogPost } from '@/types/blog'
+import ViewBadge from '@/components/Blog/ViewBadge'
 import { QueryDocumentSnapshot } from 'firebase/firestore'
 
 interface AllPostsListProps {
@@ -105,8 +106,9 @@ export default function AllPostsList({ initialPosts }: AllPostsListProps) {
 
               <div className="p-6">
                 <h2 className="text-xl mb-3 text-white line-clamp-2">{post.title}</h2>
-                <p className="text-sm text-[#03e8f9] mb-3">
-                  {date.toLocaleDateString('ko-KR')}
+                <p className="text-sm text-[#03e8f9] mb-3 flex items-center justify-between gap-3">
+                  <span>{date.toLocaleDateString('ko-KR')}</span>
+                  <ViewBadge count={post.viewCount ?? 0} className="text-white/50" iconClassName="w-3.5 h-3.5" />
                 </p>
                 {post.tags && post.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">

@@ -11,6 +11,8 @@ export interface BlogPost {
   tags?: string[]
   published: boolean
   slug?: string // URL 친화적인 제목
+  viewCount?: number // 조회수 (방문자가 글을 열 때 +1)
+  lastViewedAt?: Timestamp | Date // 마지막 조회 시각
 }
 
 export interface BlogPostFormData {
