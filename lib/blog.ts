@@ -12,7 +12,11 @@ import {
   limit,
   startAfter,
   QueryDocumentSnapshot,
-  Timestamp 
+  DocumentSnapshot,
+  Timestamp,
+  increment,
+  serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { db, storage } from './firebase'
@@ -20,6 +24,21 @@ import { BlogPost, Project } from '@/types/blog'
 
 const POSTS_COLLECTION = 'posts'
 const PROJECTS_COLLECTION = 'projects'
+
+// Firestore 문서 -> BlogPost (Timestamp는 Date로 변환해 서버/클라이언트 경계를 넘길 수 있게 함)
+const toBlogPost = (snap: QueryDocumentSnapshot | DocumentSnapshot): BlogPost => {
+  const data = snap.data() as Record<string, unknown>
+  const post = {
+    id: snap.id,
+    ...data,
+    createdAt: (data.createdAt as Timestamp).toDate(),
+    updatedAt: (data.updatedAt as Timestamp).toDate(),
+  } as BlogPost
+  if (data.lastViewedAt instanceof Timestamp) {
+    post.lastViewedAt = data.lastViewedAt.toDate()
+  }
+  return post
+}
 
 // 모든 포스트 가져오기 (공개된 것만)
 export const getPublishedPosts = async (): Promise<BlogPost[]> => {
@@ -29,12 +48,7 @@ export const getPublishedPosts = async (): Promise<BlogPost[]> => {
     orderBy('createdAt', 'desc')
   )
   const snapshot = await getDocs(q)
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt.toDate(),
-    updatedAt: doc.data().updatedAt.toDate(),
-  })) as BlogPost[]
+  return snapshot.docs.map(toBlogPost)
 }
 
 // 전체 포스트 가져오기 (페이지네이션, 공개된 것만, 최신순)
@@ -64,12 +78,7 @@ export const getPublishedPostsPaginated = async (
   const hasMore = docs.length > pageSize
   const postsToReturn = hasMore ? docs.slice(0, pageSize) : docs
 
-  const posts = postsToReturn.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt.toDate(),
-    updatedAt: doc.data().updatedAt.toDate(),
-  })) as BlogPost[]
+  const posts = postsToReturn.map(toBlogPost)
 
   const lastDocument = postsToReturn.length > 0 ? docs[postsToReturn.length - 1] : null
 
@@ -88,12 +97,7 @@ export const getAllPosts = async (): Promise<BlogPost[]> => {
       orderBy('createdAt', 'desc')
     )
     const snapshot = await getDocs(q)
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt.toDate(),
-      updatedAt: doc.data().updatedAt.toDate(),
-    })) as BlogPost[]
+    return snapshot.docs.map(toBlogPost)
   } catch (error) {
     console.error('포스트 가져오기 실패:', error)
     // 권한 에러 등으로 실패하면 빈 배열 반환
@@ -110,12 +114,7 @@ export const getPost = async (id: string): Promise<BlogPost | null> => {
     return null
   }
   
-  return {
-    id: docSnap.id,
-    ...docSnap.data(),
-    createdAt: docSnap.data().createdAt.toDate(),
-    updatedAt: docSnap.data().updatedAt.toDate(),
-  } as BlogPost
+  return toBlogPost(docSnap)
 }
 
 // 이미지 업로드
@@ -201,13 +200,7 @@ export const getPostBySlug = async (slug: string): Promise<BlogPost | null> => {
     return null
   }
   
-  const doc = snapshot.docs[0]
-  return {
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt.toDate(),
-    updatedAt: doc.data().updatedAt.toDate(),
-  } as BlogPost
+  return toBlogPost(snapshot.docs[0])
 }
 
 // 특정 태그의 포스트 가져오기
@@ -219,12 +212,7 @@ export const getPostsByTag = async (tag: string): Promise<BlogPost[]> => {
     orderBy('createdAt', 'desc')
   )
   const snapshot = await getDocs(q)
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt.toDate(),
-    updatedAt: doc.data().updatedAt.toDate(),
-  })) as BlogPost[]
+  return snapshot.docs.map(toBlogPost)
 }
 
 // 특정 태그의 포스트 가져오기 (페이지네이션)
@@ -257,12 +245,7 @@ export const getPostsByTagPaginated = async (
   const hasMore = docs.length > pageSize
   const postsToReturn = hasMore ? docs.slice(0, pageSize) : docs
 
-  const posts = postsToReturn.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt.toDate(),
-    updatedAt: doc.data().updatedAt.toDate(),
-  })) as BlogPost[]
+  const posts = postsToReturn.map(toBlogPost)
 
   // lastDoc은 원본 DocumentSnapshot을 반환해야 함
   const lastDocument = postsToReturn.length > 0 ? docs[postsToReturn.length - 1] : null
@@ -393,3 +376,39 @@ export const getAllTags = async (): Promise<string[]> => {
   return Array.from(tagSet).sort()
 }
 
+// ===== 조회수 =====
+
+// 조회수 +1 (방문자용)
+// Firestore 보안 규칙에서 비로그인 사용자는 viewCount(+1)와 lastViewedAt만 바꿀 수 있도록 제한함 (firestore.rules 참고)
+export const incrementPostView = async (postId: string): Promise<void> => {
+  const docRef = doc(db, POSTS_COLLECTION, postId)
+  await updateDoc(docRef, {
+    viewCount: increment(1),
+    lastViewedAt: serverTimestamp(),
+  })
+}
+
+// 조회수 직접 설정 (관리자용). updatedAt은 건드리지 않음
+export const setPostViewCount = async (postId: string, viewCount: number): Promise<void> => {
+  const docRef = doc(db, POSTS_COLLECTION, postId)
+  await updateDoc(docRef, { viewCount })
+}
+
+// viewCount가 아직 없는 글에 초기값을 한 번에 부여 (관리자용, 1회성)
+// min~max 사이의 무작위 정수를 넣고, 처리한 글 개수를 반환
+export const seedMissingViewCounts = async (
+  posts: BlogPost[],
+  min: number = 20,
+  max: number = 90
+): Promise<number> => {
+  const targets = posts.filter(post => post.id && typeof post.viewCount !== 'number')
+  if (targets.length === 0) return 0
+
+  const batch = writeBatch(db)
+  targets.forEach(post => {
+    const viewCount = min + Math.floor(Math.random() * (max - min + 1))
+    batch.update(doc(db, POSTS_COLLECTION, post.id as string), { viewCount })
+  })
+  await batch.commit()
+  return targets.length
+}

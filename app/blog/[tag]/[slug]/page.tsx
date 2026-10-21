@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import Header from '@/components/Home/Header/Header'
+import ViewCounter from '@/components/Blog/ViewCounter'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dowankim.site'
 const defaultOgImage = `${siteUrl}/images/og.webp`
@@ -150,7 +151,8 @@ export default async function BlogPostPage({ params }: PageProps) {
         
         <header className="mb-12 pb-8 border-b border-[rgba(3,232,249,0.2)]">
           <h1 className="text-4xl text-white mb-4">{post.title}</h1>
-          <p className="text-base text-white/60 mb-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-white/60 mb-4">
+            <span>
             {(() => {
               const date = post.createdAt instanceof Date 
                 ? post.createdAt 
@@ -163,7 +165,11 @@ export default async function BlogPostPage({ params }: PageProps) {
                 day: 'numeric'
               })
             })()}
-          </p>
+            </span>
+            {post.id && (
+              <ViewCounter postId={post.id} initialCount={post.viewCount ?? 0} />
+            )}
+          </div>
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {post.tags.map((tag) => (

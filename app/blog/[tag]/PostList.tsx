@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getPostsByTagPaginated } from '@/lib/blog'
 import { BlogPost } from '@/types/blog'
+import ViewBadge from '@/components/Blog/ViewBadge'
 import { QueryDocumentSnapshot } from 'firebase/firestore'
 
 interface PostListProps {
@@ -113,8 +114,9 @@ export default function PostList({ initialPosts, tag }: PostListProps) {
               {/* 제목과 날짜 */}
               <div className="p-6">
                 <h2 className="text-xl mb-3 text-white line-clamp-2">{post.title}</h2>
-                <p className="text-sm text-[#03e8f9]">
-                  {date.toLocaleDateString('ko-KR')}
+                <p className="text-sm text-[#03e8f9] flex items-center justify-between gap-3">
+                  <span>{date.toLocaleDateString('ko-KR')}</span>
+                  <ViewBadge count={post.viewCount ?? 0} className="text-white/50" iconClassName="w-3.5 h-3.5" />
                 </p>
               </div>
             </Link>
